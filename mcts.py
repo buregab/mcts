@@ -4,42 +4,40 @@ import pyspiel
 
 from copy import deepcopy
 
-# the exploration parameter in UCB
-C = np.sqrt(2)
-
 class Node:
     def __init__(self, state, player=0, parent=None, action=None):
         self.set_state(state)
         self.player = player
         self.rollouts = 0
-        self.wins = 0
+        # self.wins = 0
+        self.reward = 0
         self.children = []
         self.parent = parent
         self.action = action
         self.max_children = len(self._state.legal_actions())
 
-    def ucb1(self, N):
+    def ucb1(self, N, C=2):
         if self.rollouts == 0:
-            return C * np.sqrt(np.log(N))
-        return self.wins / self.rollouts + C * np.sqrt(np.log(N) / self.rollouts)
+            return np.inf
+        return self.reward / self.rollouts + C * np.sqrt(np.log(N) / self.rollouts)
 
-    def get_best_child(self):
+    def get_best_child(self, C=2):
         ucb_vals = np.zeros(len(self.children))
         for i in range(len(self.children)):
-            ucb_vals[i] = self.children[i].ucb1(self.rollouts)
+            ucb_vals[i] = self.children[i].ucb1(self.rollouts, C=C)
         selected_index = np.argmax(ucb_vals)
-        logging.info("state") 
-        logging.info(str(self._state))
-        logging.info("ucb vals")
-        logging.info(" ".join([str(e) for e in ucb_vals]))
+        logging.debug("state " + str(self._state)) 
+        logging.debug("legal actions " + " ".join([str(a) for a in self._state.legal_actions()]))
+        logging.debug("ucb vals " + " ".join([str(e) for e in ucb_vals]))
         return selected_index
 
-    def update_node(self, returns):
+    def update_node(self, returns, player):
         self.rollouts += 1 
-        if returns[self.player] == 1.0:
-            self.wins += 1.0
-        elif returns[self.player] == 0.0:
-            self.wins += 0.5 
+        self.reward += returns[player]
+        # if returns[self.player] == 1.0:
+        #     self.wins += 1.0
+        # elif returns[self.player] == 0.0:
+        #     self.wins += 0.5 
 
     def set_state(self, state):
         self._state = deepcopy(state)
@@ -54,8 +52,9 @@ class Node:
         return False
     
 class MCTS:
-    def __init__(self, state):
+    def __init__(self, state, player=0):
         self.root = Node(state)
+        self.player = player
         self.state_to_node = {str(self.root.get_state()): self.root}
 
     def selection(self):
@@ -87,7 +86,7 @@ class MCTS:
             # pick an action which has not previously been tried
             legal_actions = state.legal_actions()
             action = np.random.choice(legal_actions)
-            # the below is wrong because we can arrive at the same state different ways
+            state.apply_action(action)
             while(node.is_action_tried(action)):
                 state = node.get_state()
                 action = np.random.choice(legal_actions)
@@ -115,9 +114,32 @@ class MCTS:
 
     def backpropagation(self, node, returns):
         while(node):
-            node.update_node(returns)
+            node.update_node(returns, self.player)
             node = node.parent
         return
+
+# breadth first tree traversal for debugging
+def bfs(node):
+    queue = [node]
+    while queue:
+        node = queue.pop(0)
+        print(node.get_state())
+        print(node.reward)
+        print(node.rollouts)
+        for c in node.children:
+            queue.append(c)
+        if node.parent:
+            print(node.ucb1(node.parent.rollouts))
+
+# depth first tree traversal for debugging
+def dfs(node):
+    print(node.get_state())
+    print(node.reward)
+    print(node.rollouts)
+    if not node.children:
+        return 
+    for c in node.children:
+        dfs(c)
 
 if __name__ == "__main__":
     mcts = MCTS()
