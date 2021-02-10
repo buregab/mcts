@@ -1,5 +1,7 @@
+import getopt
 import logging
 import pyspiel
+import sys
 
 from mcts import MCTS, bfs, dfs
 from numpy.core.numeric import full
@@ -58,7 +60,19 @@ def test_first_step():
         mcts.selection()
     bfs(mcts.root)
 
+def process_args(argv):
+    try:
+        opts, args = getopt.getopt(argv, "p:", ["player="])
+    except getopt.GetoptError:
+        print("argument error")
+        sys.exit()
+
+    agent_player = 0    
+    for opt, arg in opts:
+        if opt in ("-p", "--player"):
+            player = int(arg)
+            agent_player = player ^ 1
+    full_game(agent_player=agent_player)
 
 if __name__ == "__main__":
-    # test_first_step()
-    full_game(agent_player=1)
+    process_args(sys.argv[1:])
